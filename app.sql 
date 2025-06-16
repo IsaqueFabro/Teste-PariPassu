@@ -1,0 +1,111 @@
+DROP TABLE IF EXISTS re_aluguel_filme, en_aluguel, en_filme, en_cliente CASCADE;
+
+CREATE TABLE en_cliente (
+  id_cliente SERIAL PRIMARY KEY,
+  nome TEXT
+);
+
+CREATE TABLE en_filme (
+  id_filme SERIAL PRIMARY KEY,
+  data_lancamento DATE,
+  nome TEXT,
+  descricao TEXT
+);
+
+CREATE TABLE en_aluguel (
+  id_aluguel SERIAL PRIMARY KEY,
+  id_cliente INTEGER REFERENCES en_cliente(id_cliente),
+  data_aluguel DATE,
+  valor NUMERIC(10,2)
+);
+
+CREATE TABLE re_aluguel_filme (
+  id_aluguel INTEGER REFERENCES en_aluguel(id_aluguel),
+  id_filme INTEGER REFERENCES en_filme(id_filme),
+  PRIMARY KEY (id_aluguel, id_filme)
+);
+
+-- Inserindo clientes fixos
+INSERT INTO en_cliente (nome) VALUES
+('Ana Flávia'), ('João Neves'), ('Sophia Cardoso'), ('Samuel Almeida'), ('Marcus Vinícius');
+
+-- Inserindo filmes fixos
+INSERT INTO en_filme (data_lancamento, nome, descricao) VALUES
+('1994-09-10', 'Pulp Fiction', 'Crime/Drama'),
+('2010-07-16', 'A Origem', 'Ficção científica/Ação'),
+('1999-03-31', 'Matrix', 'Ficção científica/Ação'),
+('1997-12-19', 'Titanic', 'Romance/Drama'),
+('2014-11-07', 'Interestelar', 'Ficção científica/Drama'),
+('2003-12-17', 'O Senhor dos Anéis: O Retorno do Rei', 'Fantasia/Aventura');
+
+-- Gerando aluguéis aleatórios com laço
+DO $$
+DECLARE
+  cliente_id INT;
+  total_alugueis INT;
+  i INT;
+  data_base DATE := DATE '2023-01-01';
+BEGIN
+  FOR cliente_id IN 1..5 LOOP
+    -- Número de aluguéis aleatórios entre 5 e 12 por cliente
+    total_alugueis := FLOOR(5 + RANDOM() * 8);
+
+    FOR i IN 1..total_alugueis LOOP
+      INSERT INTO en_aluguel (id_cliente, data_aluguel, valor)
+      VALUES (
+        cliente_id,
+        data_base + (FLOOR(RANDOM() * 730)::INTEGER),
+        ROUND((12.99 + RANDOM() * 7.00)::NUMERIC, 2) -- Corrected line: cast to NUMERIC before rounding
+      );
+    END LOOP;
+  END LOOP;
+END $$;
+
+-- Ligando cada aluguel a um filme aleatório
+INSERT INTO re_aluguel_filme (id_aluguel, id_filme)
+SELECT id_aluguel, FLOOR(1 + RANDOM() * 6)::INTEGER FROM en_aluguel;
+
+-- 1) Filme mais antigo
+SELECT
+    id_filme,
+    data_lancamento,
+    nome,
+    descricao
+FROM
+    en_filme
+ORDER BY
+    data_lancamento ASC
+LIMIT 1;
+
+-- 2)Total de aluguel
+SELECT
+    ec.id_cliente,
+    ec.nome,
+    COUNT(ea.id_aluguel) AS alugueis
+FROM
+    en_cliente AS ec
+LEFT JOIN
+    en_aluguel AS ea ON ec.id_cliente = ea.id_cliente
+GROUP BY
+    ec.id_cliente, ec.nome
+ORDER BY
+    alugueis DESC;
+
+-- 3) DESAFIO: ​Selecione os clientes com a quantidade de aluguéis realizados e total gasto por ano. Ordene pelo maior valor gasto por ano.
+SELECT
+    ec.id_cliente,
+    ec.nome,
+    COUNT(ea.id_aluguel) AS alugueis,
+    SUM(ea.valor) AS total_gasto,
+    EXTRACT(YEAR FROM ea.data_aluguel) AS ano
+FROM
+    en_cliente AS ec
+JOIN
+    en_aluguel AS ea ON ec.id_cliente = ea.id_cliente
+GROUP BY
+    ec.id_cliente,
+    ec.nome,
+    EXTRACT(YEAR FROM ea.data_aluguel)
+ORDER BY
+    total_gasto DESC,
+    ano DESC;
